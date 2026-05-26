@@ -51,6 +51,17 @@ try
     // EF Core + Infrastructure
     builder.Services.AddInfrastructure(builder.Configuration);
 
+    // CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+    });
+
     // Health checks
     builder.Services.AddHealthChecks()
         .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
@@ -79,6 +90,7 @@ try
 
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
+    app.UseCors();
     app.UseAuthorization();
     app.MapControllers();
 
