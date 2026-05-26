@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="FyndeerAPI.Api/FyndeerAPI.Api.csproj" />
+  <Project Path="FyndeerAPI.Application/FyndeerAPI.Application.csproj" />
+  <Project Path="FyndeerAPI.Domain/FyndeerAPI.Domain.csproj" />
+  <Project Path="FyndeerAPI.Infrastructure/FyndeerAPI.Infrastructure.csproj" />
+</Solution>
