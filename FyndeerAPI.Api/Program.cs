@@ -1,11 +1,15 @@
+using FyndeerAPI.Api.HealthChecks;
 using FyndeerAPI.Application.Common.Behaviours;
 using FyndeerAPI.Infrastructure;
 using FyndeerAPI.Infrastructure.Persistence;
 using FluentMigrator.Runner;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using Serilog;
+using System.Text.Json;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -47,6 +51,10 @@ try
     // EF Core + Infrastructure
     builder.Services.AddInfrastructure(builder.Configuration);
 
+    // Health checks
+    builder.Services.AddHealthChecks()
+        .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+
     var app = builder.Build();
 
     // Run migrations on startup
@@ -74,6 +82,26 @@ try
     app.UseAuthorization();
     app.MapControllers();
 
+    // Liveness — always healthy if the process is running
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
+    {
+        Predicate = _ => false,
+        ResponseWriter = WriteJsonResponse
+    });
+
+    // Readiness — healthy only when the database is reachable
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready"),
+        ResponseWriter = WriteJsonResponse
+    });
+
+    // Overall — all registered checks
+    app.MapHealthChecks("/health", new HealthCheckOptions
+    {
+        ResponseWriter = WriteJsonResponse
+    });
+
     app.Run();
 }
 catch (Exception ex)
@@ -83,6 +111,25 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static Task WriteJsonResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    context.Response.StatusCode = report.Status == HealthStatus.Healthy ? 200 : 503;
+
+    var result = new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.Select(e => new
+        {
+            name = e.Key,
+            status = e.Value.Status.ToString(),
+            description = e.Value.Description
+        })
+    };
+
+    return context.Response.WriteAsync(JsonSerializer.Serialize(result));
 }
 
 static void EnsureDatabaseExists(string connectionString)
